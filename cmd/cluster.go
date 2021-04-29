@@ -21,6 +21,8 @@ import (
 	"log"
 	"sync"
 
+	"github.com/wisdommatt/mongodb-data-transfer/internal/database"
+
 	"github.com/spf13/cobra"
 	"github.com/wisdommatt/mongodb-data-transfer/internal/cluster"
 	"go.mongodb.org/mongo-driver/bson"
@@ -51,38 +53,13 @@ var clusterCmd = &cobra.Command{
 		for _, dbName := range fromDatabases {
 			db := fromDBClient.Database(dbName)
 			toDB := toDBClient.Database(dbName)
-			collections, err := db.ListCollectionNames(context.TODO(), bson.M{})
-			if err != nil {
-				log.Println("An error occured while retrieving "+dbName+" collectons", err.Error())
-				continue
-			}
-			wg.Add(len(collections))
-			for _, collectionName := range collections {
-				go func(collectionName string) {
-					defer wg.Done()
-
-					collection := db.Collection(collectionName)
-					toCollection := toDB.Collection(collectionName)
-
-					var records []interface{}
-					cursor, err := collection.Find(context.TODO(), bson.M{})
-					if err != nil {
-						log.Println("An error occured while retrieving "+dbName+" - "+collectionName+" records", err.Error())
-						return
-					}
-					defer cursor.Close(context.TODO())
-					err = cursor.All(context.TODO(), &records)
-					if err != nil {
-						log.Println("An error occured while retrieving "+dbName+" - "+collectionName+" records", err.Error())
-						return
-					}
-					_, err = toCollection.InsertMany(context.TODO(), records)
-					if err != nil {
-						log.Println("An error occured while moving data from `"+dbName+" - "+collectionName+"` to `"+toDB.Name()+"` - `"+toCollection.Name()+"`", err.Error())
-					}
-				}(collectionName)
-				// break
-			}
+			wg.Add(1)
+			go func() {
+				err = database.CopyDataFromTo(db, toDB, wg)
+				if err != nil {
+					log.Println("An error occured while transferring data from database: " + db.Name() + " to " + toDB.Name())
+				}
+			}()
 			log.Println("Finished transferring `" + dbName + "` Database")
 			break
 		}
