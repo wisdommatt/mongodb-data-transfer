@@ -5,6 +5,7 @@ jobs:
     working_directory: ~/repo
     docker:
       - image: circleci/golang:1.15.8
+      - image: circleci/mongo:latest
     steps:
       - checkout
       - restore_cache:
@@ -17,10 +18,5 @@ jobs:
           key: go-mod-v4-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
-      - run:
-          name: Run tests
-          command: |
-            mkdir -p /tmp/test-reports
-            gotestsum --junitfile /tmp/test-reports/unit-tests.xml
-      - store_test_results:
-          path: /tmp/test-reports
+            
+      - run: go test ./... -cover -v
