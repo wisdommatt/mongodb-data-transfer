@@ -16,10 +16,14 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/spf13/cobra"
+	"github.com/wisdommatt/mongodb-data-transfer/internal/cluster"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // clusterCmd represents the cluster command
@@ -30,11 +34,62 @@ var clusterCmd = &cobra.Command{
 		from, _ := cmd.Flags().GetString("from")
 		to, _ := cmd.Flags().GetString("to")
 		if from == "" || to == "" {
-			log.Fatal("`from` and `to` must be provided")
+			log.Fatalln("`from` and `to` must be provided")
 			return
 		}
+		fromDBClient, toDBClient, err := cluster.DualConnect(from, to)
+		if err != nil {
+			log.Fatalln("Error while connecting to clusters ", err.Error())
+			return
+		}
+		fromDatabases, err := fromDBClient.ListDatabaseNames(context.TODO(), bson.M{})
+		if err != nil {
+			log.Fatalln("An error occured while returning `from` databases", err.Error())
+			return
+		}
+		var wg *sync.WaitGroup = new(sync.WaitGroup)
+		for _, dbName := range fromDatabases {
+			db := fromDBClient.Database(dbName)
+			toDB := toDBClient.Database(dbName)
+			collections, err := db.ListCollectionNames(context.TODO(), bson.M{})
+			if err != nil {
+				log.Println("An error occured while retrieving "+dbName+" collectons", err.Error())
+				continue
+			}
+			wg.Add(len(collections))
+			for _, collectionName := range collections {
+				go func(collectionName string) {
+					defer wg.Done()
+
+					collection := db.Collection(collectionName)
+					toCollection := toDB.Collection(collectionName)
+
+					var records []interface{}
+					cursor, err := collection.Find(context.TODO(), bson.M{})
+					if err != nil {
+						log.Println("An error occured while retrieving "+dbName+" - "+collectionName+" records", err.Error())
+						return
+					}
+					defer cursor.Close(context.TODO())
+					err = cursor.All(context.TODO(), &records)
+					if err != nil {
+						log.Println("An error occured while retrieving "+dbName+" - "+collectionName+" records", err.Error())
+						return
+					}
+					_, err = toCollection.InsertMany(context.TODO(), records)
+					if err != nil {
+						log.Println("An error occured while moving data from `"+dbName+" - "+collectionName+"` to `"+toDB.Name()+"` - `"+toCollection.Name()+"`", err.Error())
+					}
+				}(collectionName)
+				// break
+			}
+			log.Println("Finished transferring `" + dbName + "` Database")
+			break
+		}
+		wg.Wait()
+		fmt.Println(fromDatabases)
 		// mongo.Connect
-		fmt.Println("cluster called")
+		// fmt.Println("cluster called", fromDBClient, toDBClient)
 	},
 }
 
