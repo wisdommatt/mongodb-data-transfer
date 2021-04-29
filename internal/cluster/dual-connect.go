@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"github.com/wisdommatt/mongodb-data-transfer/internal/database"
+	"github.com/wisdommatt/mongodb-data-transfer/internal/mongodb"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -10,10 +10,10 @@ import (
 // If an error occured while connecting to the first client it doesn't
 // proceed to the next client.
 func DualConnect(uri1, uri2 string) (client1, client2 *mongo.Client, err error) {
-	client1, err = database.Connect(uri1)
+	client1, err = mongodb.Connect(uri1)
 	if err != nil {
 		return
 	}
-	client2, err = database.Connect(uri2)
+	client2, err = mongodb.Connect(uri2)
 	return
 }

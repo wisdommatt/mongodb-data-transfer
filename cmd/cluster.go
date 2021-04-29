@@ -31,6 +31,7 @@ var clusterCmd = &cobra.Command{
 	Use:   "cluster",
 	Short: "Transfers data from one cluster to another.",
 	Run: func(cmd *cobra.Command, args []string) {
+		wg := new(sync.WaitGroup)
 		from, _ := cmd.Flags().GetString("from")
 		to, _ := cmd.Flags().GetString("to")
 		if from == "" || to == "" {
@@ -47,7 +48,6 @@ var clusterCmd = &cobra.Command{
 			log.Fatalln("An error occured while returning `from` databases", err.Error())
 			return
 		}
-		var wg *sync.WaitGroup = new(sync.WaitGroup)
 		for _, dbName := range fromDatabases {
 			db := fromDBClient.Database(dbName)
 			toDB := toDBClient.Database(dbName)
@@ -87,7 +87,7 @@ var clusterCmd = &cobra.Command{
 			break
 		}
 		wg.Wait()
-		fmt.Println(fromDatabases)
+		fmt.Println("Execution Completed !")
 		// mongo.Connect
 		// fmt.Println("cluster called", fromDBClient, toDBClient)
 	},
