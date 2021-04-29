@@ -16,16 +16,12 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"sync"
 
-	"github.com/wisdommatt/mongodb-data-transfer/internal/database"
-
 	"github.com/spf13/cobra"
 	"github.com/wisdommatt/mongodb-data-transfer/internal/cluster"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // clusterCmd represents the cluster command
@@ -33,33 +29,16 @@ var clusterCmd = &cobra.Command{
 	Use:   "cluster",
 	Short: "Transfers data from one cluster to another.",
 	Run: func(cmd *cobra.Command, args []string) {
-		wg := new(sync.WaitGroup)
+		var wg *sync.WaitGroup = new(sync.WaitGroup)
+
+		log.Println("running")
 		from, _ := cmd.Flags().GetString("from")
 		to, _ := cmd.Flags().GetString("to")
 		if from == "" || to == "" {
 			log.Fatalln("`from` and `to` must be provided")
 			return
 		}
-		fromDBClient, toDBClient, err := cluster.DualConnect(from, to)
-		if err != nil {
-			log.Fatalln("Error while connecting to clusters ", err.Error())
-			return
-		}
-		fromDatabases, err := fromDBClient.ListDatabaseNames(context.TODO(), bson.M{})
-		if err != nil {
-			log.Fatalln("An error occured while returning `from` databases", err.Error())
-			return
-		}
-		wg.Add(len(fromDatabases))
-		for _, dbName := range fromDatabases {
-			go func(dbName string) {
-				db := fromDBClient.Database(dbName)
-				toDB := toDBClient.Database(dbName)
-				wg.Add(1)
-				go database.CopyDataFromTo(db, toDB, wg)
-				log.Println("Finished transferring `" + dbName + "` Database")
-			}(dbName)
-		}
+		cluster.CopyDataFromTo(from, to, wg)
 		wg.Wait()
 		fmt.Println("Execution Completed !")
 	},

@@ -11,6 +11,7 @@ import (
 
 // CopyDataFromTo copies data from one collection to another.
 func CopyDataFromTo(fromColl, toColl *mongo.Collection, wg *sync.WaitGroup) {
+	defer wg.Done()
 	var records []interface{}
 	cursor, err := fromColl.Find(context.TODO(), bson.M{})
 	if err != nil {
