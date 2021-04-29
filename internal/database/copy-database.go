@@ -5,41 +5,24 @@ import (
 	"log"
 	"sync"
 
+	"github.com/wisdommatt/mongodb-data-transfer/internal/collection"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// TransferDataFromTo transfers/copies data from one database to another.
-func TransferDataFromTo(fromDB, toDB *mongo.Database, wg *sync.WaitGroup) (err error) {
+// CopyDataFromTo copies data from one database to another.
+func CopyDataFromTo(fromDB, toDB *mongo.Database, wg *sync.WaitGroup) {
+	defer wg.Done()
 	collections, err := fromDB.ListCollectionNames(context.TODO(), bson.M{})
 	if err != nil {
+		log.Println("An error occured while transferring data from database: " + fromDB.Name() + " to " + toDB.Name())
 		return
 	}
 	wg.Add(len(collections))
 	for _, collectionName := range collections {
-		go func(collectionName string) {
-			defer wg.Done()
-
-			collection := fromDB.Collection(collectionName)
-			toCollection := toDB.Collection(collectionName)
-
-			var records []interface{}
-			cursor, err := collection.Find(context.TODO(), bson.M{})
-			if err != nil {
-				log.Println("An error occured while retrieving "+fromDB.Name()+" - "+collectionName+" records", err.Error())
-				return
-			}
-			defer cursor.Close(context.TODO())
-			err = cursor.All(context.TODO(), &records)
-			if err != nil {
-				log.Println("An error occured while retrieving "+fromDB.Name()+" - "+collectionName+" records", err.Error())
-				return
-			}
-			_, err = toCollection.InsertMany(context.TODO(), records)
-			if err != nil {
-				log.Println("An error occured while moving data from `"+fromDB.Name()+" - "+collectionName+"` to `"+toDB.Name()+"` - `"+toCollection.Name()+"`", err.Error())
-			}
-		}(collectionName)
+		fromColl := fromDB.Collection(collectionName)
+		toColl := toDB.Collection(collectionName)
+		go collection.CopyDataFromTo(fromColl, toColl, wg)
 	}
-	return
 }

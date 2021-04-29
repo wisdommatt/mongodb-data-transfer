@@ -50,23 +50,18 @@ var clusterCmd = &cobra.Command{
 			log.Fatalln("An error occured while returning `from` databases", err.Error())
 			return
 		}
+		wg.Add(len(fromDatabases))
 		for _, dbName := range fromDatabases {
-			db := fromDBClient.Database(dbName)
-			toDB := toDBClient.Database(dbName)
-			wg.Add(1)
-			go func() {
-				err = database.CopyDataFromTo(db, toDB, wg)
-				if err != nil {
-					log.Println("An error occured while transferring data from database: " + db.Name() + " to " + toDB.Name())
-				}
-			}()
-			log.Println("Finished transferring `" + dbName + "` Database")
-			break
+			go func(dbName string) {
+				db := fromDBClient.Database(dbName)
+				toDB := toDBClient.Database(dbName)
+				wg.Add(1)
+				go database.CopyDataFromTo(db, toDB, wg)
+				log.Println("Finished transferring `" + dbName + "` Database")
+			}(dbName)
 		}
 		wg.Wait()
 		fmt.Println("Execution Completed !")
-		// mongo.Connect
-		// fmt.Println("cluster called", fromDBClient, toDBClient)
 	},
 }
 
