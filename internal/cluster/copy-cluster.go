@@ -24,6 +24,9 @@ func CopyDataFromTo(fromCluster, toCluster string, wg *sync.WaitGroup) {
 	}
 	wg.Add(len(fromDatabases))
 	for _, dbName := range fromDatabases {
+		if dbName == "admin" || dbName == "local" {
+			continue
+		}
 		db := fromDBClient.Database(dbName)
 		toDB := toDBClient.Database(dbName)
 		go database.CopyDataFromTo(db, toDB, wg)
