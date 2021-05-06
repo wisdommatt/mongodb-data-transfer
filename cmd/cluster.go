@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/spf13/cobra"
@@ -30,7 +31,6 @@ var clusterCmd = &cobra.Command{
 	Short: "Transfers data from one cluster to another.",
 	Run: func(cmd *cobra.Command, args []string) {
 		var wg *sync.WaitGroup = new(sync.WaitGroup)
-
 		log.Println("running")
 		from, _ := cmd.Flags().GetString("from")
 		to, _ := cmd.Flags().GetString("to")
@@ -38,7 +38,12 @@ var clusterCmd = &cobra.Command{
 			log.Fatalln("`from` and `to` must be provided")
 			return
 		}
-		cluster.CopyDataFromTo(from, to, wg)
+		onlyDBs := []string{}
+		only, _ := cmd.Flags().GetString("only")
+		if len(only) > 0 {
+			onlyDBs = strings.Split(only, ",")
+		}
+		cluster.CopyDataFromTo(from, to, onlyDBs, wg)
 		wg.Wait()
 		fmt.Println("Execution Completed !")
 	},
@@ -48,4 +53,5 @@ func init() {
 	rootCmd.AddCommand(clusterCmd)
 	clusterCmd.Flags().String("from", "", "Cluster to transfer the data from")
 	clusterCmd.Flags().String("to", "", "Cluster to transfer the data to")
+	clusterCmd.Flags().StringP("only", "o", "", "Used to strictly specify the only databases to copy separated by comma (,)")
 }
